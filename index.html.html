@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>대학생 가계부 챌린지 - 과제 제출용</title>
+    <style>
+        :root {
+            --bg-color: #121214; 
+            --card-bg: #1e1e24; 
+            --text-color: #ececec;
+            --text-muted: #a0a0a5; 
+            --primary: #4f46e5; 
+            --success: #10b981;
+            --warning: #f59e0b; 
+            --danger: #ef4444; 
+            --border: #2a2a32;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Pretendard', sans-serif; }
+        body { background-color: var(--bg-color); color: var(--text-color); padding: 20px; display: flex; justify-content: center; min-height: 100vh; }
+        .container { max-width: 800px; width: 100%; display: none; flex-direction: column; gap: 20px; }
+        
+        /* 이름 등록 오버레이 */
+        #onboarding {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: var(--bg-color); display: flex; align-items: center; justify-content: center; z-index: 1000;
+        }
+        .onboard-card { background: var(--card-bg); padding: 40px; border-radius: 20px; text-align: center; border: 1px solid var(--border); width: 90%; max-width: 400px; }
+        
+        header { text-align: center; padding: 10px 0; border-bottom: 1px solid var(--border); }
+        header h1 { font-size: 24px; color: #6366f1; }
+        
+        .card { background-color: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        @media (max-width: 600px) { .grid-2 { grid-template-columns: 1fr; } }
+        
+        .form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+        label { font-size: 14px; color: var(--text-muted); }
+        input, select { background-color: var(--bg-color); border: 1px solid var(--border); border-radius: 6px; padding: 10px; color: white; outline: none; }
+        input:focus, select:focus { border-color: var(--primary); }
+        button { background-color: var(--primary); color: white; border: none; border-radius: 6px; padding: 12px; font-weight: bold; cursor: pointer; transition: 0.2s; }
+        button:hover { background-color: #5a52e6; }
+        
+        .status-box { background: rgba(255,255,255,0.02); padding: 15px; border-radius: 8px; text-align: center; }
+        .alert-zone { margin-top: 10px; padding: 12px; border-radius: 6px; font-size: 14px; display: none; font-weight: 500; text-align: center; }
+        .history-list { display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; margin-top: 10px; }
+        .history-item { display: flex; justify-content: space-between; padding: 12px; background-color: var(--bg-color); border-radius: 6px; border-left: 4px solid var(--primary); }
+    </style>
+</head>
+<body>
+
+<div id="onboarding">
+    <div class="onboard-card">
+        <h2 style="margin-bottom: 20px;">환영합니다! 👋</h2>
+        <p style="color: var(--text-muted); margin-bottom: 20px; font-size: 14px;">가계부 관리를 시작하기 위해<br>사용자 이름을 입력해주세요.</p>
+        <input type="text" id="userNameInput" placeholder="이름을 입력하세요" style="width: 100%; margin-bottom: 20px; text-align: center;">
+        <button onclick="startApp()" style="width: 100%;">시작하기</button>
+    </div>
+</div>
+
+<div class="container" id="mainApp">
+    <header>
+        <h1>대학생 지출 절약 가계부 챌린지</h1>
+        <p id="userWelcome" style="font-size: 14px; color: var(--text-muted); margin-top: 5px;"></p>
+    </header>
+
+    <div class="grid-2">
+        <div class="card">
+            <h2>⚙️ 목표 및 예산 설정</h2>
+            <div class="form-group">
+                <label>한 달 총 예산 (용돈/알바비 등)</label>
+                <input type="number" id="initMonthBudget" value="500000">
+            </div>
+            <div class="form-group">
+                <label>하루 목표 제한 금액</label>
+                <input type="number" id="initDayLimit" value="15000">
+            </div>
+            <button onclick="updateSettings()" style="width: 100%;">설정 및 잔액 초기화</button>
+        </div>
+        <div class="card">
+            <h2>📊 실시간 자산 현황</h2>
+            <div class="grid-2">
+                <div class="status-box"><p style="font-size:12px; color:var(--text-muted); margin-bottom:5px;">현재 잔액</p><b id="viewBalance" style="color:var(--success); font-size:18px;">0원</b></div>
+                <div class="status-box"><p style="font-size:12px; color:var(--text-muted); margin-bottom:5px;">오늘 총 지출</p><b id="viewTodayExpense" style="font-size:18px;">0원</b></div>
+            </div>
+            <div id="liveAlert" class="alert-zone"></div>
+        </div>
+    </div>
+
+    <div class="grid-2">
+        <div class="card">
+            <h2>✍️ 지출/수입 내역 등록</h2>
+            <div class="form-group">
+                <label>구분</label>
+                <select id="txType">
+                    <option value="expense">지출 (-)</option>
+                    <option value="income">수입 (+)</option>
+                </select>
+            </div>
+            <div class="form-group"><label>금액 (숫자만 입력)</label><input type="text" id="txAmount" placeholder="금액 입력"></div>
+            <div class="form-group">
+                <label>카테고리</label>
+                <select id="txCategory">
+                    <option value="식비">1. 식비</option>
+                    <option value="교통비">2. 교통비</option>
+                    <option value="카페/유흥">3. 카페/유흥</option>
+                    <option value="교재/학습">4. 교재/학습</option>
+                    <option value="기타">5. 기타</option>
+                </select>
+            </div>
+            <div class="form-group"><label>간단한 메모</label><input type="text" id="txMemo" placeholder="메모 입력"></div>
+            <button onclick="addTransaction()" style="width: 100%;">내역 추가하기</button>
+        </div>
+        <div class="card">
+            <h2>🔍 내역 조회 및 필터링</h2>
+            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                <label style="white-space:nowrap;">필터 선택:</label>
+                <select id="filterCategory" onchange="render()" style="width:100px; padding:5px;">
+                    <option value="전체">전체</option><option value="식비">식비</option><option value="교통비">교통비</option><option value="카페/유흥">카페/유흥</option><option value="교재/학습">교재/학습</option><option value="기타">기타</option>
+                </select>
+            </div>
+            <div class="history-list" id="historyContainer"></div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>📈 월말 결산 및 분석 통계 <button onclick="calculateStats()" style="font-size:12px; padding: 4px 10px; float:right; background:#333;">분석 갱신</button></h2>
+        <p id="feedbackMessage" style="font-size:14px; color: var(--text-muted); margin-top:15px; line-height:1.6;">내역을 등록하고 분석 버튼을 눌러보세요.</p>
+    </div>
+</div>
+
+<script>
+    let userName = "";
+    let balance = 0, todayExpense = 0, dayLimit = 15000, transactions = [];
+
+    function startApp() {
+        const name = document.getElementById('userNameInput').value.trim();
+        if(!name) { alert("이름을 입력해주세요."); return; }
+        userName = name;
+        document.getElementById('onboarding').style.display = 'none';
+        document.getElementById('mainApp').style.display = 'flex';
+        document.getElementById('userWelcome').innerText = `${userName}님의 스마트한 자산 관리 파트너`;
+        updateSettings();
+    }
+
+    function updateSettings() {
+        const mbInput = document.getElementById('initMonthBudget').value;
+        const dlInput = document.getElementById('initDayLimit').value;
+        if(!mbInput || !dlInput || isNaN(mbInput) || isNaN(dlInput)) {
+            alert("올바른 숫자를 입력해주세요.");
+            return;
+        }
+        balance = parseInt(mbInput);
+        dayLimit = parseInt(dlInput);
+        todayExpense = 0; 
+        transactions = [];
+        render(); 
+        checkLiveAlert();
+    }
+
+    function addTransaction() {
+        const type = document.getElementById('txType').value;
+        const amountInput = document.getElementById('txAmount').value.trim();
+        const category = document.getElementById('txCategory').value;
+        const memo = document.getElementById('txMemo').value.trim() || "기록 없음";
+
+        if (!amountInput || isNaN(amountInput) || parseInt(amountInput) <= 0) {
+            alert("금액을 정확한 숫자로 입력해주세요.");
+            return;
+        }
+
+        const amount = parseInt(amountInput);
+        transactions.push({ id: Date.now(), type, amount, category, memo, date: new Date() });
+
+        if (type === 'income') {
+            balance += amount;
+        } else {
+            balance -= amount;
+            todayExpense += amount;
+        }
+
+        document.getElementById('txAmount').value = "";
+        document.getElementById('txMemo').value = "";
+        checkLiveAlert();
+        render();
+    }
+
+    function checkLiveAlert() {
+        const zone = document.getElementById('liveAlert');
+        if (dayLimit === 0 || todayExpense === 0) { zone.style.display = "none"; return; }
+        
+        const rate = (todayExpense / dayLimit) * 100;
+        zone.style.display = "block";
+        
+        if (rate >= 100) {
+            zone.style.background = "rgba(239, 68, 68, 0.15)"; zone.style.color = "var(--danger)"; zone.style.border = "1px solid var(--danger)";
+            zone.innerText = `🚨 실패: 오늘 제한 금액(${dayLimit.toLocaleString()}원)을 초과했습니다!`;
+        } else if (rate >= 70) {
+            zone.style.background = "rgba(245, 158, 11, 0.15)"; zone.style.color = "var(--warning)"; zone.style.border = "1px solid var(--warning)";
+            zone.innerText = `⚠️ 경고: 오늘 제한 금액의 70% 이상을 소비했습니다!`;
+        } else {
+            zone.style.background = "rgba(79, 70, 229, 0.15)"; zone.style.color = "#6366f1"; zone.style.border = "1px solid var(--primary)";
+            zone.innerText = `👍 안정: 소비 목표치를 잘 지키고 있습니다.`;
+        }
+    }
+
+    function render() {
+        document.getElementById('viewBalance').innerText = balance.toLocaleString() + "원";
+        document.getElementById('viewTodayExpense').innerText = todayExpense.toLocaleString() + "원";
+        const filter = document.getElementById('filterCategory').value;
+        const container = document.getElementById('historyContainer');
+        container.innerHTML = "";
+
+        const filtered = transactions.filter(tx => filter === '전체' || tx.category === filter);
+        if(filtered.length === 0) {
+            container.innerHTML = `<p style="font-size:13px; color:var(--text-muted); text-align:center; padding:20px;">내역이 없습니다.</p>`;
+            return;
+        }
+
+        filtered.forEach(tx => {
+            const sign = tx.type === 'income' ? '+' : '-';
+            const color = tx.type === 'income' ? 'var(--success)' : 'var(--text-color)';
+            container.innerHTML += `
+                <div class="history-item" style="border-left-color: ${tx.type === 'income' ? 'var(--success)' : 'var(--primary)'}">
+                    <div><span>[${tx.category}] ${tx.memo}</span></div>
+                    <b style="color: ${color}">${sign}${tx.amount.toLocaleString()}원</b>
+                </div>`;
+        });
+    }
+
+    function calculateStats() {
+        const expenses = transactions.filter(tx => tx.type === 'expense');
+        if (expenses.length === 0) { alert("분석할 지출 내역이 없습니다."); return; }
+
+        const catMap = { "식비": 0, "교통비": 0, "카페/유흥": 0, "교재/학습": 0, "기타": 0 };
+        expenses.forEach(tx => { if (catMap[tx.category] !== undefined) catMap[tx.category] += tx.amount; });
+
+        let maxCategory = "", maxAmount = -1;
+        for (const [cat, amt] of Object.entries(catMap)) {
+            if (amt > maxAmount) { maxAmount = amt; maxCategory = cat; }
+        }
+
+        let comment = "";
+        if (maxCategory === "식비") comment = "지나친 외식이나 배달 소비가 없는지 점검해보세요.";
+        else if (maxCategory === "카페/유흥") comment = "잦은 여가 활동이나 카페 지출을 조절할 필요가 있습니다.";
+        else if (maxCategory === "교재/학습") comment = "미래를 위한 가치 있는 투자입니다. 효율적인 자금 안배에 신경 써보세요.";
+        else comment = "충동구매 요소가 없었는지 지출 내역을 다시 검토해보세요.";
+
+        document.getElementById('feedbackMessage').innerHTML = `
+            현재까지 <b>${userName}님</b>이 가장 많이 지출한 항목은 <b style="color:var(--danger)">[${maxCategory}]</b>이며, 총 <b>${maxAmount.toLocaleString()}원</b>을 사용했습니다.<br>
+            📌 <b>소비 가이드:</b> ${comment}`;
+    }
+</script>
+</body>
+</html>
